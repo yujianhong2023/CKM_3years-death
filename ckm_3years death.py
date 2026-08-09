@@ -89,26 +89,39 @@ st.markdown("""
         color: #6c757d;
         margin-top: 0.2rem;
     }
-    .result-outcome {
-        font-size: 1.3rem;
-        font-weight: 600;
-        margin-top: 0.5rem;
-        padding: 0.4rem 1.5rem;
-        border-radius: 8px;
-        display: inline-block;
-    }
-    .outcome-death {
-        color: #dc3545;
-        background-color: #f8d7da;
-    }
-    .outcome-survive {
-        color: #28a745;
-        background-color: #d4edda;
-    }
     .result-prob-detail {
-        margin-top: 0.4rem;
-        font-size: 0.8rem;
-        color: #6c757d;
+        margin-top: 0.6rem;
+        font-size: 0.95rem;
+        color: #495057;
+    }
+    .result-prob-detail .death {
+        color: #dc3545;
+        font-weight: 600;
+    }
+    .result-prob-detail .survival {
+        color: #28a745;
+        font-weight: 600;
+    }
+
+    .probability-bar {
+        margin-top: 0.8rem;
+        background-color: #e9ecef;
+        border-radius: 20px;
+        height: 12px;
+        overflow: hidden;
+        position: relative;
+    }
+    .probability-bar .death-bar {
+        background: linear-gradient(90deg, #dc3545, #b02a37);
+        height: 100%;
+        border-radius: 20px;
+        transition: width 0.5s ease;
+    }
+    .probability-bar .survival-bar {
+        background: linear-gradient(90deg, #28a745, #1a7a34);
+        height: 100%;
+        border-radius: 20px;
+        transition: width 0.5s ease;
     }
 
     .stButton > button {
@@ -148,13 +161,17 @@ st.markdown("""
         padding: 0.7rem 1rem;
         border-left: 4px solid;
     }
-    .interpret-death {
+    .interpret-high {
         background-color: #f8d7da;
         border-color: #dc3545;
     }
-    .interpret-survive {
+    .interpret-low {
         background-color: #d4edda;
         border-color: #28a745;
+    }
+    .interpret-moderate {
+        background-color: #fff3cd;
+        border-color: #ffc107;
     }
     .interpret-title {
         font-weight: 600;
@@ -163,6 +180,13 @@ st.markdown("""
     .interpret-text {
         font-size: 0.85rem;
         margin: 0.2rem 0 0 0;
+    }
+
+    .info-note {
+        text-align: center;
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -332,8 +356,7 @@ def predict_risk(input_df):
     cont_scaled = scaler.transform(cont_df)
     X_scaled = np.hstack([cont_scaled, cat_df.values])
     prob = model.predict_proba(X_scaled)[0, 1]
-    prediction = 1 if prob >= threshold else 0
-    return prob, prediction
+    return prob
 
 
 # ==================== Results Section ====================
@@ -342,38 +365,59 @@ with col_result:
 
     if predict_clicked:
         input_data = create_input_data()
-        prob, pred = predict_risk(input_data)
+        prob = predict_risk(input_data)
 
-        # Determine outcome
-        if pred == 1:
-            outcome_text = "Mortality"
-            outcome_class = "outcome-death"
-            outcome_icon = "⚠️"
+        # Calculate death and survival probabilities
+        death_prob = prob * 100
+        survival_prob = (1 - prob) * 100
+
+        # Determine risk level for interpretation
+        if prob >= 0.5:
+            risk_level = "high"
+            risk_text = "⚠️ Elevated mortality risk detected"
+            risk_detail = "Consider comprehensive clinical evaluation and intensive management."
+            risk_class = "interpret-high"
+            risk_color = "#dc3545"
+        elif prob >= 0.2:
+            risk_level = "moderate"
+            risk_text = "⚡ Moderate mortality risk detected"
+            risk_detail = "Consider closer monitoring and regular follow-up."
+            risk_class = "interpret-moderate"
+            risk_color = "#ffc107"
         else:
-            outcome_text = "Survived"
-            outcome_class = "outcome-survive"
-            outcome_icon = "✅"
+            risk_level = "low"
+            risk_text = "✅ Low mortality risk detected"
+            risk_detail = "Continue routine monitoring and standard care."
+            risk_class = "interpret-low"
+            risk_color = "#28a745"
 
         # ===== Result Card =====
         st.markdown(f"""
         <div class="result-card">
             <div class="result-number">
-                {prob * 100:.1f}<span class="percent">%</span>
+                {death_prob:.1f}<span class="percent">%</span>
             </div>
             <div class="result-label">3-Year Mortality Probability</div>
-            <div class="result-outcome {outcome_class}">
-                {outcome_icon} {outcome_text}
-            </div>
             <div class="result-prob-detail">
-                Death: {prob * 100:.1f}% &nbsp;|&nbsp; Survival: {(1 - prob) * 100:.1f}%
+                <span class="death">Death: {death_prob:.1f}%</span>
+                <span style="color: #6c757d; margin: 0 0.5rem;">|</span>
+                <span class="survival">Survival: {survival_prob:.1f}%</span>
+            </div>
+            <div class="probability-bar">
+                <div class="death-bar" style="width: {death_prob}%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #6c757d; margin-top: 0.2rem;">
+                <span>0%</span>
+                <span>50%</span>
+                <span>100%</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # ===== Predicted Class =====
+        # ===== Model Info =====
         st.markdown(f"""
-        <div style="text-align: center; color: #6c757d; font-size: 0.8rem; margin-bottom: 0.8rem; padding: 0.3rem; background-color: #f8f9fa; border-radius: 6px;">
-            Predicted Class: <strong>{pred}</strong> (0 = Survived, 1 = Mortality) &nbsp;|&nbsp; Threshold: <strong>{threshold:.3f}</strong>
+        <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-bottom: 0.8rem; padding: 0.3rem; background-color: #f8f9fa; border-radius: 6px;">
+            Model Threshold: <strong>{threshold:.4f}</strong>
         </div>
         """, unsafe_allow_html=True)
 
@@ -381,24 +425,23 @@ with col_result:
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
         st.markdown("### 📖 Interpretation")
 
-        if pred == 1:
-            st.markdown("""
-            <div class="interpret-box interpret-death">
-                <p class="interpret-title" style="color:#721c24;">⚠️ Elevated 3-year mortality risk detected</p>
-                <p class="interpret-text" style="color:#721c24;">
-                    Consider comprehensive clinical evaluation and intensive management.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="interpret-box interpret-survive">
-                <p class="interpret-title" style="color:#155724;">✅ Low 3-year mortality risk predicted</p>
-                <p class="interpret-text" style="color:#155724;">
-                    Continue routine monitoring and standard care.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="interpret-box {risk_class}">
+            <p class="interpret-title" style="color: {'#721c24' if risk_level == 'high' else '#856404' if risk_level == 'moderate' else '#155724'};">
+                {risk_text}
+            </p>
+            <p class="interpret-text" style="color: {'#721c24' if risk_level == 'high' else '#856404' if risk_level == 'moderate' else '#155724'};">
+                {risk_detail}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ===== Note =====
+        st.markdown("""
+        <div class="info-note">
+            ⚠️ This tool is for clinical research reference only, not for final diagnosis.
+        </div>
+        """, unsafe_allow_html=True)
 
     else:
         # ===== Placeholder =====
@@ -457,8 +500,9 @@ with col_help2:
     st.markdown("""
     **📊 Result Interpretation**
     - **Mortality Probability**: 3-year death risk
-    - **Prediction**: Death / Survival
-    - **Threshold**: Decision boundary
+    - **Survival Probability**: 3-year survival rate
+    - **Risk Level**: Low / Moderate / High
+    - **Visual Bar**: Probability distribution
     """)
 
 with col_help3:
