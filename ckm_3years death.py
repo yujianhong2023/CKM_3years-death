@@ -68,27 +68,33 @@ st.markdown("""
 
     .result-card {
         border-radius: 12px;
-        padding: 1.5rem;
+        padding: 1.8rem 1.5rem;
         text-align: center;
         margin-bottom: 0.8rem;
         border: 2px solid #e9ecef;
-        background-color: #fafbfc;
+        background: linear-gradient(135deg, #fafbfc, #ffffff);
     }
     .result-number {
-        font-size: 3.2rem;
+        font-size: 3.5rem;
         font-weight: 700;
         color: #1a1a2e;
+        line-height: 1.2;
+    }
+    .result-number .percent {
+        font-size: 1.8rem;
+        color: #6c757d;
     }
     .result-label {
         font-size: 0.95rem;
         color: #6c757d;
+        margin-top: 0.2rem;
     }
     .result-outcome {
-        font-size: 1.2rem;
+        font-size: 1.3rem;
         font-weight: 600;
-        margin-top: 0.3rem;
-        padding: 0.3rem 1rem;
-        border-radius: 6px;
+        margin-top: 0.5rem;
+        padding: 0.4rem 1.5rem;
+        border-radius: 8px;
         display: inline-block;
     }
     .outcome-death {
@@ -98,6 +104,11 @@ st.markdown("""
     .outcome-survive {
         color: #28a745;
         background-color: #d4edda;
+    }
+    .result-prob-detail {
+        margin-top: 0.4rem;
+        font-size: 0.8rem;
+        color: #6c757d;
     }
 
     .stButton > button {
@@ -152,31 +163,6 @@ st.markdown("""
     .interpret-text {
         font-size: 0.85rem;
         margin: 0.2rem 0 0 0;
-    }
-
-    .feature-list {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 0.8rem 1rem;
-        border: 1px solid #e9ecef;
-        margin-top: 0.5rem;
-    }
-    .feature-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.25rem 0;
-        border-bottom: 1px solid #f1f3f5;
-        font-size: 0.85rem;
-    }
-    .feature-item:last-child {
-        border-bottom: none;
-    }
-    .feature-item .name {
-        color: #495057;
-    }
-    .feature-item .value {
-        font-weight: 500;
-        color: #1a1a2e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -371,56 +357,25 @@ with col_result:
         # ===== Result Card =====
         st.markdown(f"""
         <div class="result-card">
-            <div class="result-number">{prob * 100:.1f}%</div>
+            <div class="result-number">
+                {prob * 100:.1f}<span class="percent">%</span>
+            </div>
             <div class="result-label">3-Year Mortality Probability</div>
             <div class="result-outcome {outcome_class}">
-                {outcome_icon} Prediction: {outcome_text}
+                {outcome_icon} {outcome_text}
             </div>
-            <div style="margin-top: 0.3rem; font-size: 0.8rem; color: #6c757d;">
-                (Death: {prob * 100:.1f}% | Survival: {(1 - prob) * 100:.1f}%)
+            <div class="result-prob-detail">
+                Death: {prob * 100:.1f}% &nbsp;|&nbsp; Survival: {(1 - prob) * 100:.1f}%
             </div>
         </div>
         """, unsafe_allow_html=True)
 
         # ===== Predicted Class =====
         st.markdown(f"""
-        <div style="text-align: center; color: #6c757d; font-size: 0.82rem; margin-bottom: 0.8rem;">
-            Predicted Class: <strong>{pred}</strong> (0. Survived, 1. Mortality)
-            <br><span style="font-size: 0.7rem;">Threshold: {threshold:.3f}</span>
+        <div style="text-align: center; color: #6c757d; font-size: 0.8rem; margin-bottom: 0.8rem; padding: 0.3rem; background-color: #f8f9fa; border-radius: 6px;">
+            Predicted Class: <strong>{pred}</strong> (0 = Survived, 1 = Mortality) &nbsp;|&nbsp; Threshold: <strong>{threshold:.3f}</strong>
         </div>
         """, unsafe_allow_html=True)
-
-        # ===== Input Features Summary =====
-        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-        st.markdown("### 📊 Input Features")
-
-        # Display all input features in a clean list
-        feature_display = {
-            'Gender': gender,
-            'Age': f"{age} years",
-            'MCV': f"{mcv} fL",
-            'RDW': f"{rdw} %",
-            'PLT': f"{plt_val} ×10⁹/L",
-            'Albumin': f"{alb} g/L",
-            'Globulin': f"{glb} g/L",
-            'AST': f"{ast} U/L",
-            'CRP': f"{crp} mg/L",
-            'Cancer History': cancer,
-            'CKM Stage': ckm,
-            'ABSI': f"{absi:.3f}",
-            'SII': f"{sii} ×10⁹/L"
-        }
-
-        feature_html = '<div class="feature-list">'
-        for name, value in feature_display.items():
-            feature_html += f"""
-            <div class="feature-item">
-                <span class="name">{name}</span>
-                <span class="value">{value}</span>
-            </div>
-            """
-        feature_html += '</div>'
-        st.markdown(feature_html, unsafe_allow_html=True)
 
         # ===== Interpretation =====
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -455,6 +410,7 @@ with col_result:
             </p>
         </div>
         """, unsafe_allow_html=True)
+
 
 # ==================== Global Feature Importance ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
