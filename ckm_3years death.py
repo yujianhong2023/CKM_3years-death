@@ -120,6 +120,13 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(74, 108, 247, 0.4);
     }
+    .shap-container {
+        background-color: white;
+        border-radius: 8px;
+        padding: 0.5rem;
+        overflow-x: auto;
+        border: 1px solid #e9ecef;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -256,8 +263,8 @@ with col_input:
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Predict button
-        predict_clicked = st.button("🔍 Predict", type="primary", use_container_width=True)
+        # Predict button - Fixed: use width='stretch' instead of use_container_width
+        predict_clicked = st.button("🔍 Predict", type="primary", width='stretch')
 
 
 # ==================== Data Processing ====================
@@ -288,6 +295,78 @@ def predict_risk(input_df):
     prob = model.predict_proba(X_scaled)[0, 1]
     prediction = 1 if prob >= threshold else 0
     return prob, prediction, X_scaled
+
+
+# ==================== SHAP Force Plot Function (Multi-version compatible) ====================
+def display_shap_force_plot(expected_value, shap_values, X_scaled, feature_names):
+    """
+    Display SHAP force plot with compatibility for different SHAP versions.
+    Supports SHAP 0.40+ and older versions.
+    """
+
+    force_displayed = False
+
+    # Method 1: Use shap.plots.force (SHAP 0.40+ recommended)
+    if hasattr(shap, 'plots') and hasattr(shap.plots, 'force'):
+        try:
+            force_plot = shap.plots.force(
+                expected_value,
+                shap_values,
+                X_scaled,
+                feature_names=feature_names,
+                show=False
+            )
+            if force_plot:
+                if hasattr(force_plot, 'html'):
+                    shap_html = force_plot.html()
+                else:
+                    shap_html = str(force_plot)
+
+                components.html(
+                    f"""
+                    <div class="shap-container">
+                        {shap_html}
+                    </div>
+                    """,
+                    height=150,
+                    scrolling=True
+                )
+                force_displayed = True
+                return True
+        except Exception as e:
+            st.warning(f"Method 1 (shap.plots.force) failed: {e}")
+
+    # Method 2: Use shap.force_plot (traditional method)
+    if not force_displayed and hasattr(shap, 'force_plot'):
+        try:
+            force_plot = shap.force_plot(
+                expected_value,
+                shap_values,
+                X_scaled,
+                feature_names=feature_names,
+                show=False
+            )
+            if force_plot:
+                if hasattr(force_plot, 'html'):
+                    shap_html = force_plot.html()
+                else:
+                    shap_html = str(force_plot)
+
+                components.html(
+                    f"""
+                    <div class="shap-container">
+                        {shap_html}
+                    </div>
+                    """,
+                    height=150,
+                    scrolling=True
+                )
+                force_displayed = True
+                return True
+        except Exception as e:
+            st.warning(f"Method 2 (shap.force_plot) failed: {e}")
+
+    return False
 
 
 # ==================== Results ====================
@@ -325,14 +404,20 @@ with col_result:
         </div>
         """, unsafe_allow_html=True)
 
-        # ==================== SHAP Force Plot ====================
+        # ==================== SHAP Explanation ====================
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
         st.markdown("### 🔍 Model Explanation (SHAP)")
+        st.markdown("*Force plot shows how each feature contributes to the prediction*")
 
         try:
+            # Display SHAP version info
+            st.caption(f"SHAP version: {shap.__version__}")
+
+            # Create explainer
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(X_scaled)
 
+            # Handle multi-output
             if isinstance(shap_values, list):
                 shap_values = shap_values[1]
 
@@ -344,23 +429,37 @@ with col_result:
             # ===== SHAP Force Plot =====
             st.markdown("#### Force Plot")
 
-            # Generate force plot
-            force_plot_html = shap.force_plot(
+            force_success = display_shap_force_plot(
                 expected_value,
                 shap_values,
                 X_scaled,
-                feature_names=feature_names,
-                matplotlib=False,
-                show=False
+                feature_names
             )
 
-            # Display force plot
-            shap_html_str = f"""
-            <div style="background-color: white; border-radius: 8px; padding: 0.5rem; overflow-x: auto; border: 1px solid #e9ecef;">
-                {force_plot_html.html()}
-            </div>
-            """
-            components.html(shap_html_str, height=150, scrolling=True)
+            if not force_success:
+                st.info("💡 Force plot unavailable, showing alternative visualization...")
+
+                # Fallback: SHAP bar chart
+                st.markdown("#### SHAP Bar Chart (Alternative)")
+                fig, ax = plt.subplots(figsize=(8, 4))
+                shap_df_alt = pd.DataFrame({
+                    'Feature': feature_names,
+                    'SHAP Value': shap_values[0]
+                }).sort_values('SHAP Value', ascending=True)
+                colors_alt = ['#dc3545' if x > 0 else '#007bff' for x in shap_df_alt['SHAP Value']]
+                ax.barh(shap_df_alt['Feature'], shap_df_alt['SHAP Value'], color=colors_alt)
+                ax.axvline(0, color='black', linestyle='-', linewidth=0.5)
+                ax.set_xlabel('SHAP Value')
+                ax.set_title('Feature Impact on Mortality Prediction')
+                from matplotlib.patches import Patch
+
+                legend_elements = [
+                    Patch(facecolor='#dc3545', label='⬆ Increases Mortality Risk'),
+                    Patch(facecolor='#007bff', label='⬇ Decreases Mortality Risk')
+                ]
+                ax.legend(handles=legend_elements, loc='lower right')
+                plt.tight_layout()
+                st.pyplot(fig)
 
             # ===== Feature Contribution Table =====
             st.markdown("#### Feature Contributions")
@@ -371,11 +470,9 @@ with col_result:
                 'SHAP Value': shap_values[0]
             }).sort_values('SHAP Value', ascending=False)
 
-            # Display top contributing features
             for _, row in shap_df.iterrows():
                 color_class = "shap-positive" if row['SHAP Value'] > 0 else "shap-negative"
                 arrow = "⬆" if row['SHAP Value'] > 0 else "⬇"
-                impact = "Increases Risk" if row['SHAP Value'] > 0 else "Decreases Risk"
                 st.markdown(f"""
                 <div class="feature-row">
                     <span class="feature-name">{row['Feature']}</span>
@@ -414,10 +511,17 @@ with col_result:
                     'Direction': ['⬆ Increases Risk' if x > 0 else '⬇ Decreases Risk' for x in shap_values[0]],
                     '|SHAP Value|': np.abs(shap_values[0])
                 }).sort_values('|SHAP Value|', ascending=False)
-                st.dataframe(shap_detail, use_container_width=True)
+                # Fixed: use width='stretch' instead of use_container_width
+                st.dataframe(shap_detail, width='stretch')
 
         except Exception as e:
             st.warning(f"⚠️ SHAP explanation generation failed: {e}")
+            st.info("""
+            **Troubleshooting:**
+            1. Try upgrading SHAP: `pip install --upgrade shap`
+            2. Or downgrade to compatible version: `pip install shap==0.44.0`
+            3. Make sure the model is a tree-based model (Random Forest, XGBoost, etc.)
+            """)
 
         # ==================== Clinical Interpretation ====================
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -474,7 +578,8 @@ try:
     st.pyplot(fig)
 
     with st.expander("📋 View Feature Importance Details"):
-        st.dataframe(imp_df.sort_values('Importance', ascending=False), use_container_width=True)
+        # Fixed: use width='stretch' instead of use_container_width
+        st.dataframe(imp_df.sort_values('Importance', ascending=False), width='stretch')
 
 except Exception as e:
     st.warning(f"⚠️ Unable to display feature importance: {e}")
@@ -519,3 +624,7 @@ st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.caption(
     "⚠️ This tool is for clinical research reference only, not for final diagnosis | Model Version: v1.0"
 )
+
+# ==================== Running Instructions ====================
+# To run this app, use the following command in your terminal:
+# streamlit run "C:\Users\admin\PycharmProjects\PythonProject9\CKM_3 year death\ckm_3years death.py"
