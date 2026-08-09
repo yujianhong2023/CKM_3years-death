@@ -89,18 +89,26 @@ st.markdown("""
         color: #6c757d;
         margin-top: 0.2rem;
     }
-    .result-prob-detail {
-        margin-top: 0.6rem;
-        font-size: 0.95rem;
-        color: #495057;
+    .result-outcome {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-top: 0.5rem;
+        padding: 0.4rem 1.5rem;
+        border-radius: 8px;
+        display: inline-block;
     }
-    .result-prob-detail .death {
+    .outcome-death {
         color: #dc3545;
-        font-weight: 600;
+        background-color: #f8d7da;
     }
-    .result-prob-detail .survival {
+    .outcome-survive {
         color: #28a745;
-        font-weight: 600;
+        background-color: #d4edda;
+    }
+    .result-prob-detail {
+        margin-top: 0.4rem;
+        font-size: 0.8rem;
+        color: #6c757d;
     }
 
     .probability-bar {
@@ -113,12 +121,6 @@ st.markdown("""
     }
     .probability-bar .death-bar {
         background: linear-gradient(90deg, #dc3545, #b02a37);
-        height: 100%;
-        border-radius: 20px;
-        transition: width 0.5s ease;
-    }
-    .probability-bar .survival-bar {
-        background: linear-gradient(90deg, #28a745, #1a7a34);
         height: 100%;
         border-radius: 20px;
         transition: width 0.5s ease;
@@ -161,17 +163,13 @@ st.markdown("""
         padding: 0.7rem 1rem;
         border-left: 4px solid;
     }
-    .interpret-high {
+    .interpret-death {
         background-color: #f8d7da;
         border-color: #dc3545;
     }
-    .interpret-low {
+    .interpret-survive {
         background-color: #d4edda;
         border-color: #28a745;
-    }
-    .interpret-moderate {
-        background-color: #fff3cd;
-        border-color: #ffc107;
     }
     .interpret-title {
         font-weight: 600;
@@ -187,6 +185,15 @@ st.markdown("""
         font-size: 0.75rem;
         color: #6c757d;
         margin-top: 0.5rem;
+    }
+    .threshold-note {
+        text-align: center;
+        color: #6c757d;
+        font-size: 0.75rem;
+        margin-bottom: 0.8rem;
+        padding: 0.3rem;
+        background-color: #f8f9fa;
+        border-radius: 6px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -227,7 +234,12 @@ scaler = artifacts['scaler']
 features = artifacts['features']
 categorical_features = artifacts['categorical_features']
 continuous_features = artifacts['continuous_features']
-threshold = artifacts.get('threshold', 0.5)
+model_threshold = artifacts.get('threshold', 0.5)
+
+# ===== IMPORTANT: Override threshold to 0.50 for binary classification display =====
+# This means only patients with ≥ 50% mortality probability will be classified as "Mortality"
+DISPLAY_THRESHOLD = 0.50
+
 model_info = artifacts.get('model_info', {})
 
 # ==================== Header ====================
@@ -262,7 +274,7 @@ with col_m4:
     st.markdown(f"""
     <div class="metric-box">
         <div class="label">Threshold</div>
-        <div class="value">{threshold:.4f}</div>
+        <div class="value">{DISPLAY_THRESHOLD:.2f}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -371,25 +383,21 @@ with col_result:
         death_prob = prob * 100
         survival_prob = (1 - prob) * 100
 
-        # Determine risk level for interpretation
-        if prob >= 0.5:
-            risk_level = "high"
-            risk_text = "⚠️ Elevated mortality risk detected"
-            risk_detail = "Consider comprehensive clinical evaluation and intensive management."
-            risk_class = "interpret-high"
-            risk_color = "#dc3545"
-        elif prob >= 0.2:
-            risk_level = "moderate"
-            risk_text = "⚡ Moderate mortality risk detected"
-            risk_detail = "Consider closer monitoring and regular follow-up."
-            risk_class = "interpret-moderate"
-            risk_color = "#ffc107"
+        # Determine outcome using 50% threshold
+        if prob >= DISPLAY_THRESHOLD:
+            outcome_text = "Mortality"
+            outcome_class = "outcome-death"
+            outcome_icon = "⚠️"
+            interpret_class = "interpret-death"
+            interpret_title = "⚠️ High mortality risk detected (≥50%)"
+            interpret_text = "Consider comprehensive clinical evaluation and intensive management."
         else:
-            risk_level = "low"
-            risk_text = "✅ Low mortality risk detected"
-            risk_detail = "Continue routine monitoring and standard care."
-            risk_class = "interpret-low"
-            risk_color = "#28a745"
+            outcome_text = "Survived"
+            outcome_class = "outcome-survive"
+            outcome_icon = "✅"
+            interpret_class = "interpret-survive"
+            interpret_title = "✅ Low mortality risk detected (<50%)"
+            interpret_text = "Continue routine monitoring and standard care."
 
         # ===== Result Card =====
         st.markdown(f"""
@@ -398,26 +406,28 @@ with col_result:
                 {death_prob:.1f}<span class="percent">%</span>
             </div>
             <div class="result-label">3-Year Mortality Probability</div>
+            <div class="result-outcome {outcome_class}">
+                {outcome_icon} {outcome_text}
+            </div>
             <div class="result-prob-detail">
-                <span class="death">Death: {death_prob:.1f}%</span>
-                <span style="color: #6c757d; margin: 0 0.5rem;">|</span>
-                <span class="survival">Survival: {survival_prob:.1f}%</span>
+                Death: {death_prob:.1f}% &nbsp;|&nbsp; Survival: {survival_prob:.1f}%
             </div>
             <div class="probability-bar">
                 <div class="death-bar" style="width: {death_prob}%;"></div>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #6c757d; margin-top: 0.2rem;">
                 <span>0%</span>
-                <span>50%</span>
+                <span>50% (Threshold)</span>
                 <span>100%</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # ===== Model Info =====
+        # ===== Threshold Note =====
         st.markdown(f"""
-        <div style="text-align: center; color: #6c757d; font-size: 0.75rem; margin-bottom: 0.8rem; padding: 0.3rem; background-color: #f8f9fa; border-radius: 6px;">
-            Model Threshold: <strong>{threshold:.4f}</strong>
+        <div class="threshold-note">
+            Classification Threshold: <strong>{DISPLAY_THRESHOLD:.2f}</strong> 
+            (≥ {DISPLAY_THRESHOLD*100:.0f}% = Mortality)
         </div>
         """, unsafe_allow_html=True)
 
@@ -426,12 +436,12 @@ with col_result:
         st.markdown("### 📖 Interpretation")
 
         st.markdown(f"""
-        <div class="interpret-box {risk_class}">
-            <p class="interpret-title" style="color: {'#721c24' if risk_level == 'high' else '#856404' if risk_level == 'moderate' else '#155724'};">
-                {risk_text}
+        <div class="interpret-box {interpret_class}">
+            <p class="interpret-title" style="color: {'#721c24' if prob >= DISPLAY_THRESHOLD else '#155724'};">
+                {interpret_title}
             </p>
-            <p class="interpret-text" style="color: {'#721c24' if risk_level == 'high' else '#856404' if risk_level == 'moderate' else '#155724'};">
-                {risk_detail}
+            <p class="interpret-text" style="color: {'#721c24' if prob >= DISPLAY_THRESHOLD else '#155724'};">
+                {interpret_text}
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -501,7 +511,7 @@ with col_help2:
     **📊 Result Interpretation**
     - **Mortality Probability**: 3-year death risk
     - **Survival Probability**: 3-year survival rate
-    - **Risk Level**: Low / Moderate / High
+    - **Outcome**: Mortality (≥50%) / Survived (<50%)
     - **Visual Bar**: Probability distribution
     """)
 
@@ -512,11 +522,12 @@ with col_help3:
     - Features: 13 clinical variables
     - AUC: {model_info.get('auc', 0.835):.3f}
     - Balanced Accuracy: {model_info.get('balanced_accuracy', 0.766):.3f}
+    - Classification Threshold: 0.50
     - For research reference only
     """)
 
 # ==================== Footer ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.caption(
-    "⚠️ This tool is for clinical research reference only, not for final diagnosis | Model Version: v1.0"
+    "⚠️ This tool is for clinical research reference only, not for final diagnosis | Model Version: v1.0 | Threshold: 0.50"
 )
