@@ -6,6 +6,7 @@ import os
 import shap
 import matplotlib.pyplot as plt
 import streamlit.components.v1 as components
+import json
 
 # ==================== Page Configuration ====================
 st.set_page_config(
@@ -263,7 +264,7 @@ with col_input:
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Predict button - Fixed: use width='stretch' instead of use_container_width
+        # Predict button
         predict_clicked = st.button("🔍 Predict", type="primary", width='stretch')
 
 
@@ -297,55 +298,74 @@ def predict_risk(input_df):
     return prob, prediction, X_scaled
 
 
-# ==================== SHAP Force Plot Function (Multi-version compatible) ====================
+# ==================== SHAP Force Plot Function (Fixed for SHAP 0.52.0) ====================
 def display_shap_force_plot(expected_value, shap_values, X_scaled, feature_names):
     """
-    Display SHAP force plot with compatibility for different SHAP versions.
-    Supports SHAP 0.40+ and older versions.
+    Display SHAP force plot with compatibility for SHAP 0.52.0
     """
 
     force_displayed = False
 
-    # Method 1: Use shap.plots.force (SHAP 0.40+ recommended)
-    if hasattr(shap, 'plots') and hasattr(shap.plots, 'force'):
-        try:
-            force_plot = shap.plots.force(
-                expected_value,
-                shap_values,
-                X_scaled,
-                feature_names=feature_names,
-                show=False
-            )
-            if force_plot:
-                if hasattr(force_plot, 'html'):
-                    shap_html = force_plot.html()
-                else:
-                    shap_html = str(force_plot)
+    # Ensure X_scaled is 2D array with shape (1, n_features)
+    if X_scaled.ndim == 1:
+        X_scaled = X_scaled.reshape(1, -1)
 
-                components.html(
-                    f"""
-                    <div class="shap-container">
-                        {shap_html}
-                    </div>
-                    """,
-                    height=150,
-                    scrolling=True
-                )
-                force_displayed = True
-                return True
-        except Exception as e:
-            st.warning(f"Method 1 (shap.plots.force) failed: {e}")
+    # Ensure shap_values is 2D array with shape (1, n_features)
+    if shap_values.ndim == 1:
+        shap_values = shap_values.reshape(1, -1)
 
-    # Method 2: Use shap.force_plot (traditional method)
-    if not force_displayed and hasattr(shap, 'force_plot'):
+    # Method 1: Use shap.force_plot with proper base value
+    if hasattr(shap, 'force_plot'):
         try:
+            # For SHAP 0.52.0, force_plot expects base_value as first param
             force_plot = shap.force_plot(
-                expected_value,
-                shap_values,
-                X_scaled,
+                expected_value,  # base value
+                shap_values,  # SHAP values
+                X_scaled,  # feature values
                 feature_names=feature_names,
                 show=False
             )
+
+            if force_plot:
+                # Get HTML representation
+                if hasattr(force_plot, 'html'):
+                    shap_html = force_plot.html()
+                else:
+                    shap_html = str(force_plot)
+
+                # For SHAP 0.52.0, the HTML might be in a different format
+                if not shap_html.startswith('<'):
+                    # Try to get the HTML from the object's _repr_html_
+                    if hasattr(force_plot, '_repr_html_'):
+                        shap_html = force_plot._repr_html_()
+
+                components.html(
+                    f"""
+                    <div class="shap-container">
+                        {shap_html}
+                    </div>
+                    """,
+                    height=150,
+                    scrolling=True
+                )
+                force_displayed = True
+                return True
+        except Exception as e:
+            st.warning(f"Method 1 (shap.force_plot) failed: {e}")
+
+    # Method 2: Try using shap.plots.force (alternative API)
+    if not force_displayed and hasattr(shap, 'plots') and hasattr(shap.plots, 'force'):
+        try:
+            # Create Explanation object for better compatibility
+            explanation = shap.Explanation(
+                values=shap_values,
+                base_values=expected_value,
+                data=X_scaled,
+                feature_names=feature_names
+            )
+
+            force_plot = shap.plots.force(explanation, show=False)
+
             if force_plot:
                 if hasattr(force_plot, 'html'):
                     shap_html = force_plot.html()
@@ -364,7 +384,29 @@ def display_shap_force_plot(expected_value, shap_values, X_scaled, feature_names
                 force_displayed = True
                 return True
         except Exception as e:
-            st.warning(f"Method 2 (shap.force_plot) failed: {e}")
+            st.warning(f"Method 2 (shap.plots.force) failed: {e}")
+
+    # Method 3: Use waterfall plot as alternative
+    if not force_displayed:
+        try:
+            st.info("💡 Using waterfall plot as alternative visualization...")
+
+            explanation = shap.Explanation(
+                values=shap_values,
+                base_values=expected_value,
+                data=X_scaled,
+                feature_names=feature_names
+            )
+
+            # Create waterfall plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+            shap.plots.waterfall(explanation[0], show=False, max_display=10)
+            plt.tight_layout()
+            st.pyplot(fig)
+            force_displayed = True
+            return True
+        except Exception as e:
+            st.warning(f"Waterfall plot failed: {e}")
 
     return False
 
@@ -511,16 +553,16 @@ with col_result:
                     'Direction': ['⬆ Increases Risk' if x > 0 else '⬇ Decreases Risk' for x in shap_values[0]],
                     '|SHAP Value|': np.abs(shap_values[0])
                 }).sort_values('|SHAP Value|', ascending=False)
-                # Fixed: use width='stretch' instead of use_container_width
                 st.dataframe(shap_detail, width='stretch')
 
         except Exception as e:
             st.warning(f"⚠️ SHAP explanation generation failed: {e}")
             st.info("""
             **Troubleshooting:**
-            1. Try upgrading SHAP: `pip install --upgrade shap`
-            2. Or downgrade to compatible version: `pip install shap==0.44.0`
-            3. Make sure the model is a tree-based model (Random Forest, XGBoost, etc.)
+            1. Make sure the model is a tree-based model (Random Forest, XGBoost, etc.)
+            2. Check that X_scaled has the correct shape: (1, n_features)
+            3. Try downgrading SHAP: `pip install shap==0.44.0`
+            4. Or upgrade to latest: `pip install --upgrade shap`
             """)
 
         # ==================== Clinical Interpretation ====================
@@ -578,7 +620,6 @@ try:
     st.pyplot(fig)
 
     with st.expander("📋 View Feature Importance Details"):
-        # Fixed: use width='stretch' instead of use_container_width
         st.dataframe(imp_df.sort_values('Importance', ascending=False), width='stretch')
 
 except Exception as e:
