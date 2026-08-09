@@ -17,7 +17,6 @@ st.set_page_config(
 # ==================== Custom CSS ====================
 st.markdown("""
 <style>
-    /* ===== Global ===== */
     .main-header {
         font-size: 2.0rem;
         font-weight: 700;
@@ -34,7 +33,6 @@ st.markdown("""
         margin: 1.2rem 0;
     }
 
-    /* ===== Metric Boxes ===== */
     .metric-box {
         background-color: #f8f9fa;
         border-radius: 8px;
@@ -54,7 +52,6 @@ st.markdown("""
         color: #1a1a2e;
     }
 
-    /* ===== Input Cards ===== */
     .input-card {
         background-color: white;
         border-radius: 12px;
@@ -70,71 +67,41 @@ st.markdown("""
         letter-spacing: 0.5px;
         margin-bottom: 0.8rem;
     }
-    .input-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.3rem 0;
-        border-bottom: 1px solid #f1f3f5;
-    }
-    .input-row:last-child {
-        border-bottom: none;
-    }
-    .input-label {
-        font-size: 0.85rem;
-        color: #495057;
-        font-weight: 500;
-    }
-    .input-value {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #1a1a2e;
-        background-color: #f8f9fa;
-        padding: 0.1rem 0.8rem;
-        border-radius: 4px;
-        min-width: 60px;
-        text-align: center;
-    }
-    .input-unit {
-        font-size: 0.7rem;
-        color: #6c757d;
-        font-weight: 400;
-        margin-left: 4px;
-    }
 
-    /* ===== Risk Cards ===== */
-    .risk-card {
+    .result-card {
         border-radius: 12px;
-        padding: 1.2rem;
+        padding: 1.5rem;
         text-align: center;
-        color: white;
         margin-bottom: 0.8rem;
+        border: 2px solid #e9ecef;
+        background-color: #fafbfc;
     }
-    .risk-card-high {
-        background: linear-gradient(135deg, #dc3545, #b02a37);
-    }
-    .risk-card-moderate {
-        background: linear-gradient(135deg, #ffc107, #d39e00);
+    .result-number {
+        font-size: 3.2rem;
+        font-weight: 700;
         color: #1a1a2e;
     }
-    .risk-card-low {
-        background: linear-gradient(135deg, #28a745, #1a7a34);
+    .result-label {
+        font-size: 0.95rem;
+        color: #6c757d;
     }
-    .risk-number {
-        font-size: 2.8rem;
-        font-weight: 700;
-    }
-    .risk-label {
-        font-size: 0.9rem;
-        opacity: 0.9;
-    }
-    .risk-text {
-        font-size: 1.0rem;
+    .result-outcome {
+        font-size: 1.2rem;
         font-weight: 600;
         margin-top: 0.3rem;
+        padding: 0.3rem 1rem;
+        border-radius: 6px;
+        display: inline-block;
+    }
+    .outcome-death {
+        color: #dc3545;
+        background-color: #f8d7da;
+    }
+    .outcome-survive {
+        color: #28a745;
+        background-color: #d4edda;
     }
 
-    /* ===== SHAP ===== */
     .shap-container {
         background-color: white;
         border-radius: 8px;
@@ -143,7 +110,6 @@ st.markdown("""
         border: 1px solid #e9ecef;
     }
 
-    /* ===== Feature Row ===== */
     .feature-row {
         display: flex;
         justify-content: space-between;
@@ -168,7 +134,6 @@ st.markdown("""
         color: #007bff;
     }
 
-    /* ===== Buttons ===== */
     .stButton > button {
         width: 100%;
         background: linear-gradient(135deg, #4a6cf7, #6a3de8);
@@ -184,7 +149,6 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(74, 108, 247, 0.4);
     }
 
-    /* ===== Placeholder ===== */
     .placeholder {
         background-color: #f8f9fa;
         border-radius: 12px;
@@ -202,17 +166,16 @@ st.markdown("""
         margin-top: 0.3rem;
     }
 
-    /* ===== Interpretation ===== */
     .interpret-box {
         border-radius: 8px;
         padding: 0.7rem 1rem;
         border-left: 4px solid;
     }
-    .interpret-high {
+    .interpret-death {
         background-color: #f8d7da;
         border-color: #dc3545;
     }
-    .interpret-low {
+    .interpret-survive {
         background-color: #d4edda;
         border-color: #28a745;
     }
@@ -333,7 +296,6 @@ with col_input:
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
     st.markdown('<div class="input-card-title">📊 Clinical Measurements</div>', unsafe_allow_html=True)
 
-    # Row 1: Age, MCV, RDW
     col_age, col_mcv, col_rdw = st.columns(3)
     with col_age:
         age = st.number_input("Age (years)", min_value=18, max_value=100, value=65, step=1)
@@ -342,7 +304,6 @@ with col_input:
     with col_rdw:
         rdw = st.number_input("RDW (%)", min_value=10.0, max_value=25.0, value=13.5, step=0.1)
 
-    # Row 2: PLT, Albumin, Globulin
     col_plt, col_alb, col_glb = st.columns(3)
     with col_plt:
         plt_val = st.number_input("PLT (×10⁹/L)", min_value=10, max_value=800, value=200, step=5)
@@ -351,14 +312,12 @@ with col_input:
     with col_glb:
         glb = st.number_input("Globulin (g/L)", min_value=10.0, max_value=50.0, value=25.0, step=0.5)
 
-    # Row 3: AST, CRP
     col_ast, col_crp = st.columns(2)
     with col_ast:
         ast = st.number_input("AST (U/L)", min_value=1, max_value=200, value=25, step=1)
     with col_crp:
         crp = st.number_input("CRP (mg/L)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
 
-    # Row 4: ABSI, SII
     col_absi, col_sii = st.columns(2)
     with col_absi:
         absi = st.number_input("ABSI Index", min_value=0.0, max_value=2.0, value=0.5, step=0.01)
@@ -367,7 +326,6 @@ with col_input:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ===== Predict Button =====
     predict_clicked = st.button("🔍 Predict", type="primary", width='stretch')
 
 
@@ -401,45 +359,75 @@ def predict_risk(input_df):
     return prob, prediction, X_scaled
 
 
-# ==================== SHAP Force Plot ====================
+# ==================== SHAP Force Plot (Fixed) ====================
 def display_shap_force_plot(expected_value, shap_values, X_scaled, feature_names):
-    force_displayed = False
+    """Display SHAP force plot - fixed for 1D array issue"""
 
+    # Ensure X_scaled is 2D
     if X_scaled.ndim == 1:
         X_scaled = X_scaled.reshape(1, -1)
+
+    # Ensure shap_values is 2D
     if shap_values.ndim == 1:
         shap_values = shap_values.reshape(1, -1)
 
+    # Flatten for force plot - use the first row
+    X_flat = X_scaled.flatten()
+    shap_flat = shap_values.flatten()
+
+    force_displayed = False
+
+    # Method 1: shap.force_plot with flattened arrays
     if hasattr(shap, 'force_plot'):
         try:
             force_plot = shap.force_plot(
-                expected_value, shap_values, X_scaled,
-                feature_names=feature_names, show=False
+                expected_value,
+                shap_flat,
+                X_flat,
+                feature_names=feature_names,
+                show=False
             )
             if force_plot:
-                shap_html = force_plot.html() if hasattr(force_plot, 'html') else str(force_plot)
+                if hasattr(force_plot, 'html'):
+                    shap_html = force_plot.html()
+                else:
+                    shap_html = str(force_plot)
                 if not shap_html.startswith('<') and hasattr(force_plot, '_repr_html_'):
                     shap_html = force_plot._repr_html_()
-                components.html(f'<div class="shap-container">{shap_html}</div>', height=150, scrolling=True)
+                components.html(
+                    f'<div class="shap-container">{shap_html}</div>',
+                    height=150,
+                    scrolling=True
+                )
                 force_displayed = True
                 return True
         except Exception as e:
-            pass
+            st.warning(f"Method 1 failed: {e}")
 
+    # Method 2: shap.plots.force with Explanation object
     if not force_displayed and hasattr(shap, 'plots') and hasattr(shap.plots, 'force'):
         try:
             explanation = shap.Explanation(
-                values=shap_values, base_values=expected_value,
-                data=X_scaled, feature_names=feature_names
+                values=shap_flat,
+                base_values=expected_value,
+                data=X_flat,
+                feature_names=feature_names
             )
             force_plot = shap.plots.force(explanation, show=False)
             if force_plot:
-                shap_html = force_plot.html() if hasattr(force_plot, 'html') else str(force_plot)
-                components.html(f'<div class="shap-container">{shap_html}</div>', height=150, scrolling=True)
+                if hasattr(force_plot, 'html'):
+                    shap_html = force_plot.html()
+                else:
+                    shap_html = str(force_plot)
+                components.html(
+                    f'<div class="shap-container">{shap_html}</div>',
+                    height=150,
+                    scrolling=True
+                )
                 force_displayed = True
                 return True
         except Exception as e:
-            pass
+            st.warning(f"Method 2 failed: {e}")
 
     return False
 
@@ -452,36 +440,41 @@ with col_result:
         input_data = create_input_data()
         prob, pred, X_scaled = predict_risk(input_data)
 
-        # ===== Risk Card =====
-        if prob >= threshold:
-            risk_class = "risk-card-high"
-            risk_text = "HIGH RISK"
-        elif prob >= 0.2:
-            risk_class = "risk-card-moderate"
-            risk_text = "MODERATE RISK"
+        # Determine outcome
+        if pred == 1:
+            outcome_text = "死亡 (Mortality)"
+            outcome_class = "outcome-death"
+            outcome_icon = "⚠️"
         else:
-            risk_class = "risk-card-low"
-            risk_text = "LOW RISK"
+            outcome_text = "存活 (Survived)"
+            outcome_class = "outcome-survive"
+            outcome_icon = "✅"
 
+        # ===== Result Card =====
         st.markdown(f"""
-        <div class="risk-card {risk_class}">
-            <div class="risk-number">{prob * 100:.1f}%</div>
-            <div class="risk-label">3-Year Mortality Risk</div>
-            <div class="risk-text">{risk_text}</div>
+        <div class="result-card">
+            <div class="result-number">{prob * 100:.1f}%</div>
+            <div class="result-label">3-Year Mortality Probability</div>
+            <div class="result-outcome {outcome_class}">
+                {outcome_icon} 预测结果: {outcome_text}
+            </div>
+            <div style="margin-top: 0.3rem; font-size: 0.8rem; color: #6c757d;">
+                (死亡概率: {prob * 100:.1f}% | 存活概率: {(1 - prob) * 100:.1f}%)
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
         # ===== Predicted Class =====
         st.markdown(f"""
         <div style="text-align: center; color: #6c757d; font-size: 0.82rem; margin-bottom: 0.8rem;">
-            Predicted Class: <strong>{pred}</strong> (0. Survived, 1. Mortality)
+            Predicted Class: <strong>{pred}</strong> (0. 存活 Survived, 1. 死亡 Mortality)
             <br><span style="font-size: 0.7rem;">Threshold: {threshold:.3f}</span>
         </div>
         """, unsafe_allow_html=True)
 
         # ===== SHAP Explanation =====
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-        st.markdown("### 🔍 Model Explanation")
+        st.markdown("### 🔍 Model Explanation (SHAP)")
 
         try:
             explainer = shap.TreeExplainer(model)
@@ -496,12 +489,14 @@ with col_result:
                 expected_value = expected_value[1]
 
             # ===== Force Plot =====
+            st.markdown("#### Force Plot")
+
             force_success = display_shap_force_plot(
                 expected_value, shap_values, X_scaled, feature_names
             )
 
             if not force_success:
-                st.info("💡 Showing SHAP bar chart")
+                st.info("💡 Force plot unavailable, showing SHAP bar chart")
                 fig, ax = plt.subplots(figsize=(7, 3.5))
                 shap_df_alt = pd.DataFrame({
                     'Feature': feature_names,
@@ -511,12 +506,12 @@ with col_result:
                 ax.barh(shap_df_alt['Feature'], shap_df_alt['SHAP Value'], color=colors_alt)
                 ax.axvline(0, color='black', linestyle='-', linewidth=0.5)
                 ax.set_xlabel('SHAP Value')
-                ax.set_title('Feature Impact on Mortality')
+                ax.set_title('Feature Impact on Mortality Prediction')
                 from matplotlib.patches import Patch
 
                 ax.legend(handles=[
-                    Patch(facecolor='#dc3545', label='⬆ Increases Risk'),
-                    Patch(facecolor='#007bff', label='⬇ Decreases Risk')
+                    Patch(facecolor='#dc3545', label='⬆ Increases Mortality Risk'),
+                    Patch(facecolor='#007bff', label='⬇ Decreases Mortality Risk')
                 ], loc='lower right')
                 plt.tight_layout()
                 st.pyplot(fig)
@@ -526,17 +521,19 @@ with col_result:
 
             shap_df = pd.DataFrame({
                 'Feature': feature_names,
-                'Value': X_scaled[0],
                 'SHAP Value': shap_values[0]
             }).sort_values('SHAP Value', ascending=False)
 
             for _, row in shap_df.iterrows():
                 color_class = "shap-positive" if row['SHAP Value'] > 0 else "shap-negative"
                 arrow = "⬆" if row['SHAP Value'] > 0 else "⬇"
+                direction = "增加死亡风险" if row['SHAP Value'] > 0 else "降低死亡风险"
                 st.markdown(f"""
                 <div class="feature-row">
                     <span class="feature-name">{row['Feature']}</span>
-                    <span class="feature-shap-value {color_class}">{row['SHAP Value']:.3f} {arrow}</span>
+                    <span class="feature-shap-value {color_class}">
+                        {row['SHAP Value']:.3f} {arrow} {direction}
+                    </span>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -549,12 +546,12 @@ with col_result:
             ax.barh(shap_sorted['Feature'], shap_sorted['SHAP Value'], color=colors)
             ax.axvline(0, color='black', linestyle='-', linewidth=0.5)
             ax.set_xlabel('SHAP Value')
-            ax.set_title('Feature Impact on Mortality')
+            ax.set_title('Feature Impact on Mortality Prediction')
             from matplotlib.patches import Patch
 
             ax.legend(handles=[
-                Patch(facecolor='#dc3545', label='⬆ Increases Risk'),
-                Patch(facecolor='#007bff', label='⬇ Decreases Risk')
+                Patch(facecolor='#dc3545', label='⬆ 增加死亡风险'),
+                Patch(facecolor='#007bff', label='⬇ 降低死亡风险')
             ], loc='lower right')
             plt.tight_layout()
             st.pyplot(fig)
@@ -564,33 +561,39 @@ with col_result:
                 shap_detail = pd.DataFrame({
                     'Feature': feature_names,
                     'SHAP Value': shap_values[0],
-                    'Direction': ['⬆ Increases Risk' if x > 0 else '⬇ Decreases Risk' for x in shap_values[0]],
+                    'Direction': ['⬆ 增加死亡风险' if x > 0 else '⬇ 降低死亡风险' for x in shap_values[0]],
                     '|SHAP Value|': np.abs(shap_values[0])
                 }).sort_values('|SHAP Value|', ascending=False)
                 st.dataframe(shap_detail, width='stretch')
 
         except Exception as e:
             st.warning(f"⚠️ SHAP explanation failed: {e}")
+            st.info("""
+            **Troubleshooting:**
+            1. Make sure the model is a tree-based model (Random Forest, XGBoost, etc.)
+            2. Check that X_scaled has the correct shape
+            3. Try upgrading SHAP: `pip install --upgrade shap`
+            """)
 
         # ===== Interpretation =====
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
         st.markdown("### 📖 Interpretation")
 
-        if prob >= threshold:
+        if pred == 1:
             st.markdown("""
-            <div class="interpret-box interpret-high">
-                <p class="interpret-title" style="color:#721c24;">⚠️ Elevated 3-year mortality risk detected</p>
+            <div class="interpret-box interpret-death">
+                <p class="interpret-title" style="color:#721c24;">⚠️ 预测结果显示存在较高的3年死亡风险</p>
                 <p class="interpret-text" style="color:#721c24;">
-                    Consider comprehensive clinical evaluation and intensive management.
+                    建议进行全面的临床评估和加强管理。
                 </p>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown("""
-            <div class="interpret-box interpret-low">
-                <p class="interpret-title" style="color:#155724;">✅ Low 3-year mortality risk predicted</p>
+            <div class="interpret-box interpret-survive">
+                <p class="interpret-title" style="color:#155724;">✅ 预测结果显示3年死亡风险较低</p>
                 <p class="interpret-text" style="color:#155724;">
-                    Continue routine monitoring and standard care.
+                    建议继续常规监测和标准护理。
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -601,7 +604,7 @@ with col_result:
         <div class="placeholder">
             <p class="placeholder-icon">🔬</p>
             <p class="placeholder-text">
-                Enter patient characteristics<br>and click <strong>"Predict"</strong>
+                请输入患者特征<br>然后点击 <strong>"Predict"</strong>
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -640,35 +643,35 @@ col_help1, col_help2, col_help3 = st.columns(3)
 
 with col_help1:
     st.markdown("""
-    **📝 Input Steps**
-    1. Enter patient characteristics
-    2. Select categorical variables
-    3. Input continuous variables
-    4. Click "Predict"
+    **📝 输入步骤**
+    1. 输入患者特征
+    2. 选择分类变量
+    3. 输入连续变量
+    4. 点击 "Predict"
     """)
 
 with col_help2:
     st.markdown("""
-    **📊 Result Interpretation**
-    - **Risk Probability**: 3-year mortality risk
-    - **Risk Level**: Low/Moderate/High
-    - **SHAP Values**: Feature contributions
-    - **Red**: Increases risk
-    - **Blue**: Decreases risk
+    **📊 结果解读**
+    - **死亡概率**: 3年死亡风险概率
+    - **预测结果**: 死亡/存活
+    - **SHAP值**: 特征贡献度
+    - **红色**: 增加死亡风险
+    - **蓝色**: 降低死亡风险
     """)
 
 with col_help3:
     st.markdown(f"""
-    **💡 Model Information**
-    - Algorithm: Random Forest
-    - Features: 13 clinical variables
+    **💡 模型信息**
+    - 算法: Random Forest
+    - 特征数: 13 个临床变量
     - AUC: {model_info.get('auc', 0.835):.3f}
     - Balanced Accuracy: {model_info.get('balanced_accuracy', 0.766):.3f}
-    - For research reference only
+    - 仅供临床研究参考
     """)
 
 # ==================== Footer ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.caption(
-    "⚠️ This tool is for clinical research reference only, not for final diagnosis | Model Version: v1.0"
+    "⚠️ 本工具仅供临床研究参考，不用于最终诊断 | Model Version: v1.0"
 )
