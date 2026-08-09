@@ -516,6 +516,6 @@ with col_help3:
 
 # ==================== Footer ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-st. caption(
+st.caption(
     "⚠️ This tool is for clinical research reference only, not for final diagnosis | Model Version: v1.0"
 )
