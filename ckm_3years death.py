@@ -3,9 +3,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import os
-import shap
 import matplotlib.pyplot as plt
-import streamlit.components.v1 as components
 
 # ==================== Page Configuration ====================
 st.set_page_config(
@@ -102,38 +100,6 @@ st.markdown("""
         background-color: #d4edda;
     }
 
-    .shap-container {
-        background-color: white;
-        border-radius: 8px;
-        padding: 0.5rem;
-        overflow-x: auto;
-        border: 1px solid #e9ecef;
-    }
-
-    .feature-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.3rem 0;
-        border-bottom: 1px solid #f1f3f5;
-    }
-    .feature-row:last-child {
-        border-bottom: none;
-    }
-    .feature-name {
-        font-size: 0.82rem;
-        color: #495057;
-    }
-    .feature-shap-value {
-        font-size: 0.82rem;
-        font-weight: 500;
-    }
-    .shap-positive {
-        color: #dc3545;
-    }
-    .shap-negative {
-        color: #007bff;
-    }
-
     .stButton > button {
         width: 100%;
         background: linear-gradient(135deg, #4a6cf7, #6a3de8);
@@ -186,6 +152,31 @@ st.markdown("""
     .interpret-text {
         font-size: 0.85rem;
         margin: 0.2rem 0 0 0;
+    }
+
+    .feature-list {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        border: 1px solid #e9ecef;
+        margin-top: 0.5rem;
+    }
+    .feature-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #f1f3f5;
+        font-size: 0.85rem;
+    }
+    .feature-item:last-child {
+        border-bottom: none;
+    }
+    .feature-item .name {
+        color: #495057;
+    }
+    .feature-item .value {
+        font-weight: 500;
+        color: #1a1a2e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -356,80 +347,7 @@ def predict_risk(input_df):
     X_scaled = np.hstack([cont_scaled, cat_df.values])
     prob = model.predict_proba(X_scaled)[0, 1]
     prediction = 1 if prob >= threshold else 0
-    return prob, prediction, X_scaled
-
-
-# ==================== SHAP Force Plot (Fixed) ====================
-def display_shap_force_plot(expected_value, shap_values, X_scaled, feature_names):
-    """Display SHAP force plot - fixed for 1D array issue"""
-
-    # Ensure X_scaled is 2D
-    if X_scaled.ndim == 1:
-        X_scaled = X_scaled.reshape(1, -1)
-
-    # Ensure shap_values is 2D
-    if shap_values.ndim == 1:
-        shap_values = shap_values.reshape(1, -1)
-
-    # Flatten for force plot - use the first row
-    X_flat = X_scaled.flatten()
-    shap_flat = shap_values.flatten()
-
-    force_displayed = False
-
-    # Method 1: shap.force_plot with flattened arrays
-    if hasattr(shap, 'force_plot'):
-        try:
-            force_plot = shap.force_plot(
-                expected_value,
-                shap_flat,
-                X_flat,
-                feature_names=feature_names,
-                show=False
-            )
-            if force_plot:
-                if hasattr(force_plot, 'html'):
-                    shap_html = force_plot.html()
-                else:
-                    shap_html = str(force_plot)
-                if not shap_html.startswith('<') and hasattr(force_plot, '_repr_html_'):
-                    shap_html = force_plot._repr_html_()
-                components.html(
-                    f'<div class="shap-container">{shap_html}</div>',
-                    height=150,
-                    scrolling=True
-                )
-                force_displayed = True
-                return True
-        except Exception as e:
-            st.warning(f"Method 1 failed: {e}")
-
-    # Method 2: shap.plots.force with Explanation object
-    if not force_displayed and hasattr(shap, 'plots') and hasattr(shap.plots, 'force'):
-        try:
-            explanation = shap.Explanation(
-                values=shap_flat,
-                base_values=expected_value,
-                data=X_flat,
-                feature_names=feature_names
-            )
-            force_plot = shap.plots.force(explanation, show=False)
-            if force_plot:
-                if hasattr(force_plot, 'html'):
-                    shap_html = force_plot.html()
-                else:
-                    shap_html = str(force_plot)
-                components.html(
-                    f'<div class="shap-container">{shap_html}</div>',
-                    height=150,
-                    scrolling=True
-                )
-                force_displayed = True
-                return True
-        except Exception as e:
-            st.warning(f"Method 2 failed: {e}")
-
-    return False
+    return prob, prediction
 
 
 # ==================== Results Section ====================
@@ -438,15 +356,15 @@ with col_result:
 
     if predict_clicked:
         input_data = create_input_data()
-        prob, pred, X_scaled = predict_risk(input_data)
+        prob, pred = predict_risk(input_data)
 
         # Determine outcome
         if pred == 1:
-            outcome_text = "死亡 (Mortality)"
+            outcome_text = "Mortality"
             outcome_class = "outcome-death"
             outcome_icon = "⚠️"
         else:
-            outcome_text = "存活 (Survived)"
+            outcome_text = "Survived"
             outcome_class = "outcome-survive"
             outcome_icon = "✅"
 
@@ -456,10 +374,10 @@ with col_result:
             <div class="result-number">{prob * 100:.1f}%</div>
             <div class="result-label">3-Year Mortality Probability</div>
             <div class="result-outcome {outcome_class}">
-                {outcome_icon} 预测结果: {outcome_text}
+                {outcome_icon} Prediction: {outcome_text}
             </div>
             <div style="margin-top: 0.3rem; font-size: 0.8rem; color: #6c757d;">
-                (死亡概率: {prob * 100:.1f}% | 存活概率: {(1 - prob) * 100:.1f}%)
+                (Death: {prob * 100:.1f}% | Survival: {(1 - prob) * 100:.1f}%)
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -467,113 +385,42 @@ with col_result:
         # ===== Predicted Class =====
         st.markdown(f"""
         <div style="text-align: center; color: #6c757d; font-size: 0.82rem; margin-bottom: 0.8rem;">
-            Predicted Class: <strong>{pred}</strong> (0. 存活 Survived, 1. 死亡 Mortality)
+            Predicted Class: <strong>{pred}</strong> (0. Survived, 1. Mortality)
             <br><span style="font-size: 0.7rem;">Threshold: {threshold:.3f}</span>
         </div>
         """, unsafe_allow_html=True)
 
-        # ===== SHAP Explanation =====
+        # ===== Input Features Summary =====
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-        st.markdown("### 🔍 Model Explanation (SHAP)")
+        st.markdown("### 📊 Input Features")
 
-        try:
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(X_scaled)
+        # Display all input features in a clean list
+        feature_display = {
+            'Gender': gender,
+            'Age': f"{age} years",
+            'MCV': f"{mcv} fL",
+            'RDW': f"{rdw} %",
+            'PLT': f"{plt_val} ×10⁹/L",
+            'Albumin': f"{alb} g/L",
+            'Globulin': f"{glb} g/L",
+            'AST': f"{ast} U/L",
+            'CRP': f"{crp} mg/L",
+            'Cancer History': cancer,
+            'CKM Stage': ckm,
+            'ABSI': f"{absi:.3f}",
+            'SII': f"{sii} ×10⁹/L"
+        }
 
-            if isinstance(shap_values, list):
-                shap_values = shap_values[1]
-
-            feature_names = continuous_features + categorical_features
-            expected_value = explainer.expected_value
-            if isinstance(expected_value, list):
-                expected_value = expected_value[1]
-
-            # ===== Force Plot =====
-            st.markdown("#### Force Plot")
-
-            force_success = display_shap_force_plot(
-                expected_value, shap_values, X_scaled, feature_names
-            )
-
-            if not force_success:
-                st.info("💡 Force plot unavailable, showing SHAP bar chart")
-                fig, ax = plt.subplots(figsize=(7, 3.5))
-                shap_df_alt = pd.DataFrame({
-                    'Feature': feature_names,
-                    'SHAP Value': shap_values[0]
-                }).sort_values('SHAP Value', ascending=True)
-                colors_alt = ['#dc3545' if x > 0 else '#007bff' for x in shap_df_alt['SHAP Value']]
-                ax.barh(shap_df_alt['Feature'], shap_df_alt['SHAP Value'], color=colors_alt)
-                ax.axvline(0, color='black', linestyle='-', linewidth=0.5)
-                ax.set_xlabel('SHAP Value')
-                ax.set_title('Feature Impact on Mortality Prediction')
-                from matplotlib.patches import Patch
-
-                ax.legend(handles=[
-                    Patch(facecolor='#dc3545', label='⬆ Increases Mortality Risk'),
-                    Patch(facecolor='#007bff', label='⬇ Decreases Mortality Risk')
-                ], loc='lower right')
-                plt.tight_layout()
-                st.pyplot(fig)
-
-            # ===== Feature Contributions =====
-            st.markdown("#### Feature Contributions")
-
-            shap_df = pd.DataFrame({
-                'Feature': feature_names,
-                'SHAP Value': shap_values[0]
-            }).sort_values('SHAP Value', ascending=False)
-
-            for _, row in shap_df.iterrows():
-                color_class = "shap-positive" if row['SHAP Value'] > 0 else "shap-negative"
-                arrow = "⬆" if row['SHAP Value'] > 0 else "⬇"
-                direction = "增加死亡风险" if row['SHAP Value'] > 0 else "降低死亡风险"
-                st.markdown(f"""
-                <div class="feature-row">
-                    <span class="feature-name">{row['Feature']}</span>
-                    <span class="feature-shap-value {color_class}">
-                        {row['SHAP Value']:.3f} {arrow} {direction}
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # ===== SHAP Bar Chart =====
-            st.markdown("#### SHAP Value Summary")
-
-            fig, ax = plt.subplots(figsize=(7, 3.5))
-            shap_sorted = shap_df.sort_values('SHAP Value', ascending=True)
-            colors = ['#dc3545' if x > 0 else '#007bff' for x in shap_sorted['SHAP Value']]
-            ax.barh(shap_sorted['Feature'], shap_sorted['SHAP Value'], color=colors)
-            ax.axvline(0, color='black', linestyle='-', linewidth=0.5)
-            ax.set_xlabel('SHAP Value')
-            ax.set_title('Feature Impact on Mortality Prediction')
-            from matplotlib.patches import Patch
-
-            ax.legend(handles=[
-                Patch(facecolor='#dc3545', label='⬆ 增加死亡风险'),
-                Patch(facecolor='#007bff', label='⬇ 降低死亡风险')
-            ], loc='lower right')
-            plt.tight_layout()
-            st.pyplot(fig)
-
-            # ===== Detailed Table =====
-            with st.expander("📋 View Detailed SHAP Values"):
-                shap_detail = pd.DataFrame({
-                    'Feature': feature_names,
-                    'SHAP Value': shap_values[0],
-                    'Direction': ['⬆ 增加死亡风险' if x > 0 else '⬇ 降低死亡风险' for x in shap_values[0]],
-                    '|SHAP Value|': np.abs(shap_values[0])
-                }).sort_values('|SHAP Value|', ascending=False)
-                st.dataframe(shap_detail, width='stretch')
-
-        except Exception as e:
-            st.warning(f"⚠️ SHAP explanation failed: {e}")
-            st.info("""
-            **Troubleshooting:**
-            1. Make sure the model is a tree-based model (Random Forest, XGBoost, etc.)
-            2. Check that X_scaled has the correct shape
-            3. Try upgrading SHAP: `pip install --upgrade shap`
-            """)
+        feature_html = '<div class="feature-list">'
+        for name, value in feature_display.items():
+            feature_html += f"""
+            <div class="feature-item">
+                <span class="name">{name}</span>
+                <span class="value">{value}</span>
+            </div>
+            """
+        feature_html += '</div>'
+        st.markdown(feature_html, unsafe_allow_html=True)
 
         # ===== Interpretation =====
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -582,18 +429,18 @@ with col_result:
         if pred == 1:
             st.markdown("""
             <div class="interpret-box interpret-death">
-                <p class="interpret-title" style="color:#721c24;">⚠️ 预测结果显示存在较高的3年死亡风险</p>
+                <p class="interpret-title" style="color:#721c24;">⚠️ Elevated 3-year mortality risk detected</p>
                 <p class="interpret-text" style="color:#721c24;">
-                    建议进行全面的临床评估和加强管理。
+                    Consider comprehensive clinical evaluation and intensive management.
                 </p>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="interpret-box interpret-survive">
-                <p class="interpret-title" style="color:#155724;">✅ 预测结果显示3年死亡风险较低</p>
+                <p class="interpret-title" style="color:#155724;">✅ Low 3-year mortality risk predicted</p>
                 <p class="interpret-text" style="color:#155724;">
-                    建议继续常规监测和标准护理。
+                    Continue routine monitoring and standard care.
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -604,7 +451,7 @@ with col_result:
         <div class="placeholder">
             <p class="placeholder-icon">🔬</p>
             <p class="placeholder-text">
-                请输入患者特征<br>然后点击 <strong>"Predict"</strong>
+                Enter patient characteristics<br>and click <strong>"Predict"</strong>
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -643,35 +490,33 @@ col_help1, col_help2, col_help3 = st.columns(3)
 
 with col_help1:
     st.markdown("""
-    **📝 输入步骤**
-    1. 输入患者特征
-    2. 选择分类变量
-    3. 输入连续变量
-    4. 点击 "Predict"
+    **📝 Input Steps**
+    1. Enter patient characteristics
+    2. Select categorical variables
+    3. Input continuous variables
+    4. Click "Predict"
     """)
 
 with col_help2:
     st.markdown("""
-    **📊 结果解读**
-    - **死亡概率**: 3年死亡风险概率
-    - **预测结果**: 死亡/存活
-    - **SHAP值**: 特征贡献度
-    - **红色**: 增加死亡风险
-    - **蓝色**: 降低死亡风险
+    **📊 Result Interpretation**
+    - **Mortality Probability**: 3-year death risk
+    - **Prediction**: Death / Survival
+    - **Threshold**: Decision boundary
     """)
 
 with col_help3:
     st.markdown(f"""
-    **💡 模型信息**
-    - 算法: Random Forest
-    - 特征数: 13 个临床变量
+    **💡 Model Information**
+    - Algorithm: Random Forest
+    - Features: 13 clinical variables
     - AUC: {model_info.get('auc', 0.835):.3f}
     - Balanced Accuracy: {model_info.get('balanced_accuracy', 0.766):.3f}
-    - 仅供临床研究参考
+    - For research reference only
     """)
 
 # ==================== Footer ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.caption(
-    "⚠️ 本工具仅供临床研究参考，不用于最终诊断 | Model Version: v1.0"
+    "⚠️ This tool is for clinical research reference only, not for final diagnosis | Model Version: v1.0"
 )
