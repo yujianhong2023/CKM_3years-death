@@ -211,6 +211,14 @@ st.markdown("""
         border-radius: 10px;
         margin-left: 0.3rem;
     }
+
+    .shap-highlight {
+        background-color: #fff3cd;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        border-left: 4px solid #ffc107;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,6 +248,30 @@ def load_model():
     return None
 
 
+@st.cache_resource
+def load_shap_importance():
+    """Load SHAP importance from external test set"""
+    shap_path = r"C:\Users\admin\PycharmProjects\PythonProject9\SHAP_Values_ExternalTest.csv"
+
+    if os.path.exists(shap_path):
+        try:
+            shap_df = pd.read_csv(shap_path)
+            # 计算平均绝对SHAP值
+            feature_cols = [col for col in shap_df.columns if col not in ['Actual', 'Pred_Prob', 'Pred_Class']]
+            mean_abs_shap = shap_df[feature_cols].abs().mean()
+
+            shap_importance = pd.DataFrame({
+                'Feature': feature_cols,
+                'Mean_Abs_SHAP': mean_abs_shap.values
+            }).sort_values('Mean_Abs_SHAP', ascending=False)
+
+            return shap_importance
+        except Exception as e:
+            st.warning(f"⚠️ 无法加载SHAP重要性: {e}")
+            return None
+    return None
+
+
 artifacts = load_model()
 
 if artifacts is None:
@@ -259,6 +291,9 @@ train_metrics = model_info.get('train_metrics', {})
 external_metrics = model_info.get('external_metrics', {})
 train_samples = model_info.get('train_samples', 0)
 external_samples = model_info.get('external_samples', 0)
+
+# 加载SHAP重要性
+shap_importance_df = load_shap_importance()
 
 # 显示阈值
 DISPLAY_THRESHOLD = 0.50
@@ -525,14 +560,61 @@ with col_result:
         </div>
         """, unsafe_allow_html=True)
 
-# ==================== Global Feature Importance (修复版) ====================
+# ==================== Global Feature Importance (使用SHAP) ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.markdown("### 📈 Global Feature Importance")
 
-try:
-    # 检查model是否存在
-    if 'model' in locals() or 'model' in globals():
-        # 获取特征重要性
+# 显示SHAP重要性（优先）
+if shap_importance_df is not None:
+    st.markdown("""
+    <div class="shap-highlight">
+        <strong>📊 SHAP-based Feature Importance (External Validation Set)</strong><br>
+        <span style="font-size: 0.85rem; color: #6c757d;">
+            SHAP (SHapley Additive exPlanations) values reflect the marginal contribution of each feature 
+            to the model's predictions, providing more reliable and interpretable feature importance rankings.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 按照外部测试集SHAP重要性排序
+    shap_importance_df = shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=True)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    # 使用类似SHAP summary plot的颜色方案
+    colors_shap = plt.cm.RdYlBu_r(np.linspace(0.2, 0.9, len(shap_importance_df)))
+    ax.barh(shap_importance_df['Feature'], shap_importance_df['Mean_Abs_SHAP'], color=colors_shap)
+    ax.set_xlabel('Mean |SHAP Value|', fontsize=12)
+    ax.set_title('SHAP Feature Importance (External Validation Set)', fontsize=14, fontweight='bold')
+    ax.grid(axis='x', alpha=0.3)
+
+    # 添加数值标签
+    for i, (idx, row) in enumerate(shap_importance_df.iterrows()):
+        ax.text(row['Mean_Abs_SHAP'] + 0.001, i, f'{row["Mean_Abs_SHAP"]:.4f}',
+                va='center', fontsize=8, color='#6c757d')
+
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    with st.expander("📋 View SHAP Importance Details"):
+        st.dataframe(
+            shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=False),
+            use_container_width=True
+        )
+
+        st.markdown("""
+        **💡 Why SHAP Importance?**
+
+        - **Consistency**: SHAP values provide consistent and reliable feature rankings
+        - **Interpretability**: Each SHAP value represents the marginal contribution of a feature
+        - **Clinical Relevance**: SHAP is widely adopted in clinical research for model explanation
+        - **Local Explanations**: SHAP also enables individual-level prediction explanations
+        """)
+
+else:
+    # 如果SHAP不存在，使用RF内置重要性
+    st.warning("⚠️ SHAP importance data not found. Displaying RF built-in importance instead.")
+
+    try:
         importance = model.feature_importances_
         feature_names = continuous_features + categorical_features
 
@@ -550,40 +632,8 @@ try:
 
         with st.expander("📋 View Feature Importance Details"):
             st.dataframe(imp_df.sort_values('Importance', ascending=False), use_container_width=True)
-    else:
-        st.warning("⚠️ Model object not available for feature importance display")
-
-except Exception as e:
-    st.warning(f"⚠️ Unable to display feature importance: {e}")
-    st.info(
-        "💡 This may be because the model was loaded from a pickle file. Feature importance can still be displayed by loading the model directly.")
-
-    # 备用方案：尝试直接从pickle加载模型
-    try:
-        import joblib
-
-        model_path = r"C:\Users\admin\PycharmProjects\PythonProject9\ckm_risk_model.pkl"
-        if os.path.exists(model_path):
-            with open(model_path, 'rb') as file:
-                artifacts = pickle.load(file)
-                model_temp = artifacts['model']
-
-                importance = model_temp.feature_importances_
-                feature_names = continuous_features + categorical_features
-
-                imp_df = pd.DataFrame({
-                    'Feature': feature_names,
-                    'Importance': importance
-                }).sort_values('Importance', ascending=True)
-
-                fig, ax = plt.subplots(figsize=(10, 4.5))
-                colors_imp = plt.cm.Blues(np.linspace(0.3, 0.9, len(imp_df)))[::-1]
-                ax.barh(imp_df['Feature'], imp_df['Importance'], color=colors_imp)
-                ax.set_xlabel('Feature Importance')
-                ax.set_title('Random Forest Global Feature Importance (Loaded from pickle)')
-                st.pyplot(fig)
-    except Exception as e2:
-        st.warning(f"⚠️ Backup method also failed: {e2}")
+    except Exception as e:
+        st.warning(f"⚠️ Unable to display feature importance: {e}")
 
 # ==================== External Validation Section ====================
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -660,5 +710,5 @@ st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.caption(
     f"⚠️ This tool is for clinical research reference only, not for final diagnosis | "
     f"Model validated on {external_samples if external_samples > 0 else 'external'} samples | "
-    f"Threshold: 0.50"
+    f"Threshold: 0.50 | SHAP-based feature importance"
 )
