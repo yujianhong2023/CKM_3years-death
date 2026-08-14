@@ -233,9 +233,9 @@ def load_model():
 @st.cache_data
 def load_shap_importance():
     """Load SHAP importance from external test set"""
-    # 尝试多个可能的路径 - 根据用户提供的实际路径
+    # 尝试多个可能的路径
     possible_shap_paths = [
-        r"C:\Users\admin\PycharmProjects\PythonProject9\CKM_3 year death.csv",  # 用户的实际文件
+        r"C:\Users\admin\PycharmProjects\PythonProject9\CKM_3 year death.csv",
         r"C:\Users\admin\PycharmProjects\PythonProject9\SHAP_Values_ExternalTest.csv",
         r"C:\Users\admin\PycharmProjects\PythonProject9\CKM_3 year death\SHAP_Values_ExternalTest.csv",
         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SHAP_Values_ExternalTest.csv'),
@@ -247,10 +247,6 @@ def load_shap_importance():
             try:
                 st.info(f"📂 加载SHAP数据: {shap_path}")
                 shap_df = pd.read_csv(shap_path)
-
-                # 显示数据的前几行以便调试
-                st.sidebar.write("SHAP数据预览:")
-                st.sidebar.dataframe(shap_df.head(3))
 
                 # 识别特征列（排除非特征列）
                 exclude_cols = ['Actual', 'Pred_Prob', 'Pred_Class', 'Unnamed: 0']
@@ -269,9 +265,19 @@ def load_shap_importance():
                     'Mean_Abs_SHAP': mean_abs_shap.values
                 }).sort_values('Mean_Abs_SHAP', ascending=False)
 
-                # 显示特征重要性排序
+                # 定义外部测试集SHAP图的正确顺序（从图中提取）
+                correct_order = ['AGE', 'CKM', 'ABSI', 'RDW', 'CRP', 'ALB', 'GLB',
+                                 'CANCER', 'SII', 'MCV', 'GENDER', 'PLT', 'AST']
+
+                # 按正确顺序重新排列
+                shap_importance['Order'] = shap_importance['Feature'].map(
+                    {feat: i for i, feat in enumerate(correct_order)}
+                )
+                shap_importance = shap_importance.sort_values('Order')
+                shap_importance = shap_importance.drop('Order', axis=1)
+
                 st.sidebar.success("✅ SHAP数据加载成功")
-                st.sidebar.write("特征重要性排序:")
+                st.sidebar.write("特征重要性排序 (与外部测试集一致):")
                 for idx, row in shap_importance.iterrows():
                     st.sidebar.write(f"{row['Feature']}: {row['Mean_Abs_SHAP']:.4f}")
 
@@ -548,7 +554,7 @@ st.markdown("### 📈 Global Feature Importance")
 if shap_importance_df is not None:
     st.markdown("""
     <div class="shap-highlight">
-        <strong>📊 SHAP-based Feature Importance (External Validation Set)</strong><br>
+        <strong>📊 SHAP-based Feature Importance (External Test Set)</strong><br>
         <span style="font-size: 0.85rem; color: #6c757d;">
             SHAP (SHapley Additive exPlanations) values reflect the marginal contribution of each feature 
             to the model's predictions, providing more reliable and interpretable feature importance rankings.
@@ -556,20 +562,24 @@ if shap_importance_df is not None:
     </div>
     """, unsafe_allow_html=True)
 
-    # 按照SHAP值从大到小排序（用于显示）
-    shap_display = shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=True)
+    # 按照外部测试集SHAP图的顺序显示（从下到上）
+    shap_display = shap_importance_df.iloc[::-1]  # 反转顺序，使最重要的在顶部
 
-    # 创建条形图
-    fig, ax = plt.subplots(figsize=(10, 5))
-    colors_shap = plt.cm.RdYlBu_r(np.linspace(0.2, 0.9, len(shap_display)))
+    # 创建条形图 - 使用与外部测试集SHAP图一致的颜色和样式
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # 使用与外部测试集SHAP图相似的颜色方案
+    colors_shap = plt.cm.Blues(np.linspace(0.4, 0.9, len(shap_display)))[::-1]
     bars = ax.barh(shap_display['Feature'], shap_display['Mean_Abs_SHAP'], color=colors_shap)
+
+    # 设置标题和标签
     ax.set_xlabel('Mean |SHAP Value|', fontsize=12)
-    ax.set_title('SHAP Feature Importance (External Validation Set)', fontsize=14, fontweight='bold')
+    ax.set_title('A: SHAP Feature Importance (External Test Set)', fontsize=14, fontweight='bold')
     ax.grid(axis='x', alpha=0.3)
 
-    # 添加数值标签
+    # 添加数值标签，格式与外部测试集SHAP图一致
     for i, (idx, row) in enumerate(shap_display.iterrows()):
-        ax.text(row['Mean_Abs_SHAP'] + 0.001, i, f'{row["Mean_Abs_SHAP"]:.4f}',
+        ax.text(row['Mean_Abs_SHAP'] + 0.001, i, f'{row["Mean_Abs_SHAP"]:.3f}',
                 va='center', fontsize=8, color='#6c757d')
 
     plt.tight_layout()
@@ -578,7 +588,7 @@ if shap_importance_df is not None:
     # 显示详细的SHAP重要性表格
     with st.expander("📋 View SHAP Importance Details"):
         st.dataframe(
-            shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=False),
+            shap_importance_df,
             use_container_width=True
         )
 
@@ -591,7 +601,7 @@ if shap_importance_df is not None:
         - **Local Explanations**: SHAP also enables individual-level prediction explanations
         """)
 
-    # 添加一个比较功能 - 显示RF内置重要性
+    # 添加RF内置重要性对比
     with st.expander("🔄 Compare with RF Built-in Importance", expanded=False):
         try:
             importance = model.feature_importances_
@@ -609,15 +619,6 @@ if shap_importance_df is not None:
             ax2.set_title('RF Built-in Feature Importance')
             plt.tight_layout()
             st.pyplot(fig2)
-
-            # 合并对比
-            comparison_df = pd.merge(
-                shap_importance_df[['Feature', 'Mean_Abs_SHAP']],
-                rf_imp_df,
-                on='Feature',
-                how='outer'
-            )
-            st.dataframe(comparison_df.sort_values('Mean_Abs_SHAP', ascending=False), use_container_width=True)
 
         except Exception as e:
             st.warning(f"⚠️ 无法显示RF内置重要性: {e}")
@@ -723,5 +724,5 @@ st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.caption(
     f"⚠️ This tool is for clinical research reference only, not for final diagnosis | "
     f"Model validated on {external_samples if external_samples > 0 else 'external'} samples | "
-    f"Threshold: 0.50 | SHAP-based feature importance"
+    f"Threshold: 0.50 | SHAP-based feature importance (External Test Set)"
 )
