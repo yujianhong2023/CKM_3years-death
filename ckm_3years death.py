@@ -30,7 +30,6 @@ st.markdown("""
         border-top: 1px solid #e9ecef;
         margin: 1.2rem 0;
     }
-
     .metric-box {
         background-color: #f8f9fa;
         border-radius: 8px;
@@ -56,7 +55,6 @@ st.markdown("""
     .metric-external .label {
         color: #4a6cf7;
     }
-
     .input-card {
         background-color: white;
         border-radius: 12px;
@@ -72,7 +70,6 @@ st.markdown("""
         letter-spacing: 0.5px;
         margin-bottom: 0.8rem;
     }
-
     .result-card {
         border-radius: 12px;
         padding: 1.8rem 1.5rem;
@@ -117,7 +114,6 @@ st.markdown("""
         font-size: 0.8rem;
         color: #6c757d;
     }
-
     .probability-bar {
         margin-top: 0.8rem;
         background-color: #e9ecef;
@@ -132,7 +128,6 @@ st.markdown("""
         border-radius: 20px;
         transition: width 0.5s ease;
     }
-
     .stButton > button {
         width: 100%;
         background: linear-gradient(135deg, #4a6cf7, #6a3de8);
@@ -147,7 +142,6 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(74, 108, 247, 0.4);
     }
-
     .placeholder {
         background-color: #f8f9fa;
         border-radius: 12px;
@@ -164,7 +158,6 @@ st.markdown("""
         color: #6c757d;
         margin-top: 0.3rem;
     }
-
     .interpret-box {
         border-radius: 8px;
         padding: 0.7rem 1rem;
@@ -186,7 +179,6 @@ st.markdown("""
         font-size: 0.85rem;
         margin: 0.2rem 0 0 0;
     }
-
     .info-note {
         text-align: center;
         font-size: 0.75rem;
@@ -202,16 +194,6 @@ st.markdown("""
         background-color: #f8f9fa;
         border-radius: 6px;
     }
-    .validation-badge {
-        display: inline-block;
-        background-color: #4a6cf7;
-        color: white;
-        font-size: 0.6rem;
-        padding: 0.1rem 0.5rem;
-        border-radius: 10px;
-        margin-left: 0.3rem;
-    }
-
     .shap-highlight {
         background-color: #fff3cd;
         border-radius: 8px;
@@ -248,27 +230,58 @@ def load_model():
     return None
 
 
-@st.cache_resource
+@st.cache_data
 def load_shap_importance():
     """Load SHAP importance from external test set"""
-    shap_path = r"C:\Users\admin\PycharmProjects\PythonProject9\SHAP_Values_ExternalTest.csv"
+    # 尝试多个可能的路径 - 根据用户提供的实际路径
+    possible_shap_paths = [
+        r"C:\Users\admin\PycharmProjects\PythonProject9\CKM_3 year death.csv",  # 用户的实际文件
+        r"C:\Users\admin\PycharmProjects\PythonProject9\SHAP_Values_ExternalTest.csv",
+        r"C:\Users\admin\PycharmProjects\PythonProject9\CKM_3 year death\SHAP_Values_ExternalTest.csv",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'SHAP_Values_ExternalTest.csv'),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CKM_3 year death.csv')
+    ]
 
-    if os.path.exists(shap_path):
-        try:
-            shap_df = pd.read_csv(shap_path)
-            # 计算平均绝对SHAP值
-            feature_cols = [col for col in shap_df.columns if col not in ['Actual', 'Pred_Prob', 'Pred_Class']]
-            mean_abs_shap = shap_df[feature_cols].abs().mean()
+    for shap_path in possible_shap_paths:
+        if os.path.exists(shap_path):
+            try:
+                st.info(f"📂 加载SHAP数据: {shap_path}")
+                shap_df = pd.read_csv(shap_path)
 
-            shap_importance = pd.DataFrame({
-                'Feature': feature_cols,
-                'Mean_Abs_SHAP': mean_abs_shap.values
-            }).sort_values('Mean_Abs_SHAP', ascending=False)
+                # 显示数据的前几行以便调试
+                st.sidebar.write("SHAP数据预览:")
+                st.sidebar.dataframe(shap_df.head(3))
 
-            return shap_importance
-        except Exception as e:
-            st.warning(f"⚠️ 无法加载SHAP重要性: {e}")
-            return None
+                # 识别特征列（排除非特征列）
+                exclude_cols = ['Actual', 'Pred_Prob', 'Pred_Class', 'Unnamed: 0']
+                feature_cols = [col for col in shap_df.columns if col not in exclude_cols]
+
+                if len(feature_cols) == 0:
+                    st.error("❌ 未找到特征列，请检查CSV文件格式")
+                    return None
+
+                # 计算平均绝对SHAP值
+                mean_abs_shap = shap_df[feature_cols].abs().mean()
+
+                # 创建SHAP重要性DataFrame
+                shap_importance = pd.DataFrame({
+                    'Feature': feature_cols,
+                    'Mean_Abs_SHAP': mean_abs_shap.values
+                }).sort_values('Mean_Abs_SHAP', ascending=False)
+
+                # 显示特征重要性排序
+                st.sidebar.success("✅ SHAP数据加载成功")
+                st.sidebar.write("特征重要性排序:")
+                for idx, row in shap_importance.iterrows():
+                    st.sidebar.write(f"{row['Feature']}: {row['Mean_Abs_SHAP']:.4f}")
+
+                return shap_importance
+            except Exception as e:
+                st.warning(f"⚠️ 无法加载SHAP数据: {e}")
+                continue
+
+    st.warning("⚠️ SHAP数据文件未找到，请确认文件路径")
+    st.info(f"💡 期望的文件路径: {possible_shap_paths[0]}")
     return None
 
 
@@ -303,7 +316,7 @@ st.markdown('<p class="main-header">🏥 CKM 3-Year All-Cause Mortality Risk Pre
 st.markdown('<p class="sub-header">Cardiovascular-Kidney-Metabolic Syndrome Risk Assessment Tool</p>',
             unsafe_allow_html=True)
 
-# ==================== Model Metrics (显示内部和外部验证) ====================
+# ==================== Model Metrics ====================
 st.markdown("### 📊 Model Validation Performance")
 
 col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
@@ -333,7 +346,6 @@ with col_m3:
     """, unsafe_allow_html=True)
 
 with col_m4:
-    # 内部验证性能
     train_auc = train_metrics.get('AUC', 0.835)
     st.markdown(f"""
     <div class="metric-box">
@@ -343,7 +355,6 @@ with col_m4:
     """, unsafe_allow_html=True)
 
 with col_m5:
-    # 外部验证性能（突出显示）
     ext_auc = external_metrics.get('AUC', 0.820)
     st.markdown(f"""
     <div class="metric-box metric-external">
@@ -351,28 +362,6 @@ with col_m5:
         <div class="value" style="color: #4a6cf7;">{ext_auc:.3f}</div>
     </div>
     """, unsafe_allow_html=True)
-
-# 详细性能对比
-with st.expander("📊 View Detailed Performance Comparison (Internal vs External)", expanded=False):
-    st.markdown("""
-    | Metric | Internal Validation | External Validation |
-    |--------|---------------------|---------------------|
-    """)
-
-    metrics_to_show = ['AUC', 'Accuracy', 'Balanced Accuracy', 'Sensitivity', 'Specificity']
-    metric_names = {
-        'AUC': 'AUC',
-        'Accuracy': 'Accuracy',
-        'Balanced Accuracy': 'Balanced Accuracy',
-        'Sensitivity': 'Sensitivity',
-        'Specificity': 'Specificity'
-    }
-
-    for metric in metrics_to_show:
-        train_val = train_metrics.get(metric, 0)
-        ext_val = external_metrics.get(metric, 0)
-        color = "🟢" if ext_val > train_val else "🟡"
-        st.markdown(f"| {metric_names[metric]} | {train_val:.3f} | {ext_val:.3f} {color} |")
 
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
@@ -388,7 +377,6 @@ col_input, col_result = st.columns([1.3, 1], gap="large")
 with col_input:
     st.markdown("### 📋 Patient Characteristics")
 
-    # ===== Categorical Variables =====
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
     st.markdown('<div class="input-card-title">📌 Demographics</div>', unsafe_allow_html=True)
 
@@ -401,7 +389,6 @@ with col_input:
         ckm = st.selectbox("CKM Stage", options=["Stage 1", "Stage 2", "Stage 3", "Stage 4"])
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ===== Continuous Variables =====
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
     st.markdown('<div class="input-card-title">📊 Clinical Measurements</div>', unsafe_allow_html=True)
 
@@ -435,7 +422,7 @@ with col_input:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    predict_clicked = st.button("🔍 Predict", type="primary", use_container_width=True)
+    predict_clicked = st.button("🔍 Predict", type="primary", width='stretch')
 
 
 # ==================== Data Processing ====================
@@ -475,11 +462,9 @@ with col_result:
         input_data = create_input_data()
         prob = predict_risk(input_data)
 
-        # Calculate death and survival probabilities
         death_prob = prob * 100
         survival_prob = (1 - prob) * 100
 
-        # Determine outcome using 50% threshold
         if prob >= DISPLAY_THRESHOLD:
             outcome_text = "Mortality"
             outcome_class = "outcome-death"
@@ -495,7 +480,6 @@ with col_result:
             interpret_title = "✅ Low mortality risk detected (<50%)"
             interpret_text = "Continue routine monitoring and standard care."
 
-        # ===== Result Card =====
         st.markdown(f"""
         <div class="result-card">
             <div class="result-number">
@@ -519,7 +503,6 @@ with col_result:
         </div>
         """, unsafe_allow_html=True)
 
-        # ===== Threshold Note =====
         st.markdown(f"""
         <div class="threshold-note">
             Classification Threshold: <strong>{DISPLAY_THRESHOLD:.2f}</strong> 
@@ -527,7 +510,6 @@ with col_result:
         </div>
         """, unsafe_allow_html=True)
 
-        # ===== Interpretation =====
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
         st.markdown("### 📖 Interpretation")
 
@@ -542,7 +524,6 @@ with col_result:
         </div>
         """, unsafe_allow_html=True)
 
-        # ===== Note =====
         st.markdown("""
         <div class="info-note">
             ⚠️ This tool is for clinical research reference only, not for final diagnosis.
@@ -550,7 +531,6 @@ with col_result:
         """, unsafe_allow_html=True)
 
     else:
-        # ===== Placeholder =====
         st.markdown("""
         <div class="placeholder">
             <p class="placeholder-icon">🔬</p>
@@ -564,7 +544,7 @@ with col_result:
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 st.markdown("### 📈 Global Feature Importance")
 
-# 显示SHAP重要性（优先）
+# 优先显示SHAP重要性
 if shap_importance_df is not None:
     st.markdown("""
     <div class="shap-highlight">
@@ -576,25 +556,26 @@ if shap_importance_df is not None:
     </div>
     """, unsafe_allow_html=True)
 
-    # 按照外部测试集SHAP重要性排序
-    shap_importance_df = shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=True)
+    # 按照SHAP值从大到小排序（用于显示）
+    shap_display = shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=True)
 
+    # 创建条形图
     fig, ax = plt.subplots(figsize=(10, 5))
-    # 使用类似SHAP summary plot的颜色方案
-    colors_shap = plt.cm.RdYlBu_r(np.linspace(0.2, 0.9, len(shap_importance_df)))
-    ax.barh(shap_importance_df['Feature'], shap_importance_df['Mean_Abs_SHAP'], color=colors_shap)
+    colors_shap = plt.cm.RdYlBu_r(np.linspace(0.2, 0.9, len(shap_display)))
+    bars = ax.barh(shap_display['Feature'], shap_display['Mean_Abs_SHAP'], color=colors_shap)
     ax.set_xlabel('Mean |SHAP Value|', fontsize=12)
     ax.set_title('SHAP Feature Importance (External Validation Set)', fontsize=14, fontweight='bold')
     ax.grid(axis='x', alpha=0.3)
 
     # 添加数值标签
-    for i, (idx, row) in enumerate(shap_importance_df.iterrows()):
+    for i, (idx, row) in enumerate(shap_display.iterrows()):
         ax.text(row['Mean_Abs_SHAP'] + 0.001, i, f'{row["Mean_Abs_SHAP"]:.4f}',
                 va='center', fontsize=8, color='#6c757d')
 
     plt.tight_layout()
     st.pyplot(fig)
 
+    # 显示详细的SHAP重要性表格
     with st.expander("📋 View SHAP Importance Details"):
         st.dataframe(
             shap_importance_df.sort_values('Mean_Abs_SHAP', ascending=False),
@@ -610,9 +591,41 @@ if shap_importance_df is not None:
         - **Local Explanations**: SHAP also enables individual-level prediction explanations
         """)
 
+    # 添加一个比较功能 - 显示RF内置重要性
+    with st.expander("🔄 Compare with RF Built-in Importance", expanded=False):
+        try:
+            importance = model.feature_importances_
+            feature_names = continuous_features + categorical_features
+
+            rf_imp_df = pd.DataFrame({
+                'Feature': feature_names,
+                'RF_Importance': importance
+            }).sort_values('RF_Importance', ascending=True)
+
+            fig2, ax2 = plt.subplots(figsize=(10, 4.5))
+            colors_rf = plt.cm.Blues(np.linspace(0.3, 0.9, len(rf_imp_df)))[::-1]
+            ax2.barh(rf_imp_df['Feature'], rf_imp_df['RF_Importance'], color=colors_rf)
+            ax2.set_xlabel('RF Feature Importance (Gini)')
+            ax2.set_title('RF Built-in Feature Importance')
+            plt.tight_layout()
+            st.pyplot(fig2)
+
+            # 合并对比
+            comparison_df = pd.merge(
+                shap_importance_df[['Feature', 'Mean_Abs_SHAP']],
+                rf_imp_df,
+                on='Feature',
+                how='outer'
+            )
+            st.dataframe(comparison_df.sort_values('Mean_Abs_SHAP', ascending=False), use_container_width=True)
+
+        except Exception as e:
+            st.warning(f"⚠️ 无法显示RF内置重要性: {e}")
+
 else:
     # 如果SHAP不存在，使用RF内置重要性
     st.warning("⚠️ SHAP importance data not found. Displaying RF built-in importance instead.")
+    st.info("💡 请确保 SHAP_Values_ExternalTest.csv 文件存在于正确路径")
 
     try:
         importance = model.feature_importances_
